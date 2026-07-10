@@ -35,21 +35,17 @@ jobs:
       - name: Generate android/ with Expo
         run: npx expo prebuild --platform android --no-install
 
-      - name: Patch Gradle rootProject.ext
+      - name: Patch Gradle
         run: |
-          # Add ext block to root build.gradle BEFORE apply plugin lines
-          sed -i '/^apply plugin: "expo-root-project"/i \
-ext {\n\
-    buildToolsVersion = "36.0.0"\n\
-    minSdkVersion = 24\n\
-    compileSdkVersion = 36\n\
-    targetSdkVersion = 36\n\
-    ndkVersion = "27.1.12297006"\n\
-    kotlinVersion = "2.1.20"\n\
-    kspVersion = "2.1.20-2.0.1"\n\
-}' android/build.gradle
-          echo "--- Root build.gradle ---"
-          cat android/build.gradle
+          # Replace rootProject.ext references with hardcoded values in app/build.gradle
+          sed -i 's|rootProject\.ext\.ndkVersion|"27.1.12297006"|g' android/app/build.gradle
+          sed -i 's|rootProject\.ext\.buildToolsVersion|"36.0.0"|g' android/app/build.gradle
+          sed -i 's|rootProject\.ext\.compileSdkVersion|36|g' android/app/build.gradle
+          sed -i 's|rootProject\.ext\.minSdkVersion|24|g' android/app/build.gradle
+          sed -i 's|rootProject\.ext\.targetSdkVersion|36|g' android/app/build.gradle
+          # Check what happened
+          echo "--- app/build.gradle lines 84-95 ---"
+          sed -n '84,95p' android/app/build.gradle
 
       - name: Build debug APK
         run: |
