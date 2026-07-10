@@ -1,0 +1,26 @@
+{
+  "name": "ksa",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@pocketpalai/llama.rn": "^0.8.1-0",
+    "expo": "~57.0.4",
+    "expo-build-properties": "^57.0.3",
+    "expo-status-bar": "~57.0.0",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-fs": "^2.20.0",
+    "react-native-markdown-display": "^7.0.2"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web"
+  },
+  "private": true
+}
