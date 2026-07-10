@@ -21,7 +21,6 @@
       "minSdkVersion": 24
     },
     "plugins": [
-      ["@pocketpalai/llama.rn"],
       [
         "expo-build-properties",
         {
