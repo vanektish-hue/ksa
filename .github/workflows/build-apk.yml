@@ -37,20 +37,23 @@ jobs:
 
       - name: Patch Gradle settings
         run: |
-          # Replace rootProject.ext references with direct values
-          sed -i 's/rootProject\.ext\.ndkVersion/27.1.12297006/g' android/app/build.gradle
-          sed -i 's/rootProject\.ext\.buildToolsVersion/36.0.0/g' android/app/build.gradle
-          sed -i 's/rootProject\.ext\.compileSdkVersion/36/g' android/app/build.gradle
-          sed -i 's/rootProject\.ext\.minSdkVersion/24/g' android/app/build.gradle
-          sed -i 's/rootProject\.ext\.targetSdkVersion/36/g' android/app/build.gradle
+          # Replace rootProject.ext references with quoted string values
+          sed -i "s/rootProject\.ext\.ndkVersion/\"27.1.12297006\"/g" android/app/build.gradle
+          sed -i "s/rootProject\.ext\.buildToolsVersion/\"36.0.0\"/g" android/app/build.gradle
+          sed -i "s/rootProject\.ext\.compileSdkVersion/\"36\"/g" android/app/build.gradle
+          sed -i "s/rootProject\.ext\.minSdkVersion/\"24\"/g" android/app/build.gradle
+          sed -i "s/rootProject\.ext\.targetSdkVersion/\"36\"/g" android/app/build.gradle
           # Also fix the same in any other build.gradle files
-          find android -name "build.gradle" -exec sed -i 's/rootProject\.ext\.ndkVersion/27.1.12297006/g' {} \;
-          find android -name "build.gradle" -exec sed -i 's/rootProject\.ext\.buildToolsVersion/36.0.0/g' {} \;
-          find android -name "build.gradle" -exec sed -i 's/rootProject\.ext\.compileSdkVersion/36/g' {} \;
-          find android -name "build.gradle" -exec sed -i 's/rootProject\.ext\.minSdkVersion/24/g' {} \;
-          find android -name "build.gradle" -exec sed -i 's/rootProject\.ext\.targetSdkVersion/36/g' {} \;
-          find android -name "build.gradle" -exec sed -i 's/rootProject\.ext\.kotlinVersion/2.1.20/g' {} \;
-          find android -name "build.gradle" -exec sed -i 's/rootProject\.ext\.kspVersion/2.1.20-2.0.1/g' {} \;
+          find android -name "build.gradle" -exec sed -i "s/rootProject\.ext\.ndkVersion/\"27.1.12297006\"/g" {} \;
+          find android -name "build.gradle" -exec sed -i "s/rootProject\.ext\.buildToolsVersion/\"36.0.0\"/g" {} \;
+          find android -name "build.gradle" -exec sed -i "s/rootProject\.ext\.compileSdkVersion/\"36\"/g" {} \;
+          find android -name "build.gradle" -exec sed -i "s/rootProject\.ext\.minSdkVersion/\"24\"/g" {} \;
+          find android -name "build.gradle" -exec sed -i "s/rootProject\.ext\.targetSdkVersion/\"36\"/g" {} \;
+          find android -name "build.gradle" -exec sed -i "s/rootProject\.ext\.kotlinVersion/\"2.1.20\"/g" {} \;
+          find android -name "build.gradle" -exec sed -i "s/rootProject\.ext\.kspVersion/\"2.1.20-2.0.1\"/g" {} \;
+          # Verify
+          echo "--- Patched build.gradle ---"
+          grep -n "ndkVersion\|buildTools\|compileSdk\|minSdk\|targetSdk" android/app/build.gradle
 
       - name: Build debug APK
         run: |
