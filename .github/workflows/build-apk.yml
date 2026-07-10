@@ -27,13 +27,17 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install NDK
-        run: sdkmanager "ndk;27.2.12479018"
+        run: sdkmanager "ndk;27.1.12297006"
 
       - name: Install dependencies
         run: npm install
 
       - name: Generate android/ with Expo
         run: npx expo prebuild --platform android --no-install
+
+      - name: Pin Gradle 8.11.1
+        run: |
+          sed -i 's|gradle-[0-9.]*-bin.zip|gradle-8.11.1-bin.zip|' android/gradle/wrapper/gradle-wrapper.properties
 
       - name: Patch minSdk
         run: sed -i 's/minSdkVersion [0-9]*/minSdkVersion 24/' android/app/build.gradle
@@ -42,7 +46,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
