@@ -35,25 +35,21 @@ jobs:
       - name: Generate android/ with Expo
         run: npx expo prebuild --platform android --no-install
 
-      - name: Patch Gradle settings
+      - name: Patch Gradle rootProject.ext
         run: |
-          # String values need quotes
-          sed -i "s|rootProject\.ext\.ndkVersion|\"27.1.12297006\"|g" android/app/build.gradle
-          sed -i "s|rootProject\.ext\.buildToolsVersion|\"36.0.0\"|g" android/app/build.gradle
-          # Integer values - no quotes
-          sed -i "s|rootProject\.ext\.compileSdkVersion|36|g" android/app/build.gradle
-          sed -i "s|rootProject\.ext\.minSdkVersion|24|g" android/app/build.gradle
-          sed -i "s|rootProject\.ext\.targetSdkVersion|36|g" android/app/build.gradle
-          # Also fix in other build.gradle files
-          find android -name "build.gradle" -exec sed -i "s|rootProject\.ext\.ndkVersion|\"27.1.12297006\"|g" {} \;
-          find android -name "build.gradle" -exec sed -i "s|rootProject\.ext\.buildToolsVersion|\"36.0.0\"|g" {} \;
-          find android -name "build.gradle" -exec sed -i "s|rootProject\.ext\.compileSdkVersion|36|g" {} \;
-          find android -name "build.gradle" -exec sed -i "s|rootProject\.ext\.minSdkVersion|24|g" {} \;
-          find android -name "build.gradle" -exec sed -i "s|rootProject\.ext\.targetSdkVersion|36|g" {} \;
-          find android -name "build.gradle" -exec sed -i "s|rootProject\.ext\.kotlinVersion|\"2.1.20\"|g" {} \;
-          find android -name "build.gradle" -exec sed -i "s|rootProject\.ext\.kspVersion|\"2.1.20-2.0.1\"|g" {} \;
-          echo "--- Patched app/build.gradle ---"
-          grep -n "ndkVersion\|buildTools\|compileSdk\|minSdk\|targetSdk" android/app/build.gradle
+          # Add ext block to root build.gradle BEFORE apply plugin lines
+          sed -i '/^apply plugin: "expo-root-project"/i \
+ext {\n\
+    buildToolsVersion = "36.0.0"\n\
+    minSdkVersion = 24\n\
+    compileSdkVersion = 36\n\
+    targetSdkVersion = 36\n\
+    ndkVersion = "27.1.12297006"\n\
+    kotlinVersion = "2.1.20"\n\
+    kspVersion = "2.1.20-2.0.1"\n\
+}' android/build.gradle
+          echo "--- Root build.gradle ---"
+          cat android/build.gradle
 
       - name: Build debug APK
         run: |
