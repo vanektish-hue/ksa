@@ -40,12 +40,15 @@ export function useLlama() {
     try {
       const path = await downloadModel(model);
       setStatusText('инициализация модели...');
+
       const ctx = await initLlama(
         {
           model: path,
-          n_ctx: 2048,
+          n_ctx: 1024,
           n_gpu_layers: 0,
-          use_mlock: true,
+          use_mlock: false,
+          use_mmap: true,
+          n_threads: 4,
         },
         (p: number) => {
           if (p > 0 && p < 1) setProgress(p);
@@ -76,6 +79,7 @@ export function useLlama() {
           n_predict: 1024,
           temperature: 0.7,
           top_p: 0.9,
+          stop: ['</s>', '<|end|>', '<|im_end|>'],
         },
         (data: TokenData) => {
           const t = data.token ?? data.content ?? '';
