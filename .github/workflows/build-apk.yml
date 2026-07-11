@@ -43,6 +43,11 @@ jobs:
           sed -i 's|rootProject\.ext\.minSdkVersion|24|g' android/app/build.gradle
           sed -i 's|rootProject\.ext\.targetSdkVersion|36|g' android/app/build.gradle
 
+      - name: Patch AndroidManifest (keyboard)
+        run: |
+          sed -i 's|android:launchMode="singleTask"|android:launchMode="singleTask" android:windowSoftInputMode="adjustResize"|g' android/app/src/main/AndroidManifest.xml
+          grep "SoftInput" android/app/src/main/AndroidManifest.xml || echo "WARN: SoftInput not patched"
+
       - name: Create keystore
         run: keytool -genkeypair -v -keystore /tmp/release.keystore -alias ksa -keyalg RSA -keysize 2048 -validity 10000 -storepass ksa1234 -keypass ksa1234 -dname "CN=KSA, OU=KSA, O=KSA, L=Moscow, ST=Moscow, C=RU"
 

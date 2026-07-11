@@ -126,7 +126,7 @@ const App = () => {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      behavior="padding" keyboardVerticalOffset={0}>
       <Header statusText={statusText} badge={badge} />
       <ModelPicker
         selected={selectedModel}
