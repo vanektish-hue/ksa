@@ -35,26 +35,48 @@ jobs:
       - name: Generate android/ with Expo
         run: npx expo prebuild --platform android --no-install
 
-      - name: Patch Gradle
+      - name: Create release keystore
         run: |
-          # Replace rootProject.ext references with hardcoded values in app/build.gradle
+          keytool -genkeypair -v -keystore /tmp/release.keystore \
+            -alias ksa -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass ksa1234 -keypass ksa1234 \
+            -dname "CN=KSA, OU=KSA, O=KSA, L=Moscow, ST=Moscow, C=RU"
+
+      - name: Patch Gradle + signing
+        run: |
           sed -i 's|rootProject\.ext\.ndkVersion|"27.1.12297006"|g' android/app/build.gradle
           sed -i 's|rootProject\.ext\.buildToolsVersion|"36.0.0"|g' android/app/build.gradle
           sed -i 's|rootProject\.ext\.compileSdkVersion|36|g' android/app/build.gradle
           sed -i 's|rootProject\.ext\.minSdkVersion|24|g' android/app/build.gradle
           sed -i 's|rootProject\.ext\.targetSdkVersion|36|g' android/app/build.gradle
-          # Check what happened
-          echo "--- app/build.gradle lines 84-95 ---"
-          sed -n '84,95p' android/app/build.gradle
 
-      - name: Build debug APK
+          # Add release signing config to android/app/build.gradle
+          cat >> android/app/build.gradle << 'SIGNING'
+
+          signingConfigs {
+            release {
+              storeFile file('/tmp/release.keystore')
+              storePassword 'ksa1234'
+              keyAlias 'ksa'
+              keyPassword 'ksa1234'
+            }
+          }
+          SIGNING
+
+          # Replace debug signing with release signing in buildTypes
+          sed -i 's|signingConfig signingConfigs.debug|signingConfig signingConfigs.release|g' android/app/build.gradle
+
+          echo "--- patched build.gradle ---"
+          grep -n "signingConfig\|ndkVersion\|buildTools\|compileSdk\|minSdk\|targetSdk" android/app/build.gradle
+
+      - name: Build release APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ksa-app
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
