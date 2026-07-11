@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { Header } from '@/components/Header';
 import { ModelPicker } from '@/components/ModelPicker';
@@ -17,7 +17,10 @@ import { MODELS } from '@/lib/models';
 import type { ChatMessage, SearchIndicatorState } from '@/types';
 
 const App = () => {
-  const { status, progress, statusText, loadModel, generate } = useLlama();
+  const {
+    status, progress, statusText, loadModel, generate,
+    isModelDownloaded, getLastModelId,
+  } = useLlama();
   const [selectedModel, setSelectedModel] = useState(MODELS[0].id);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -25,6 +28,19 @@ const App = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const historyRef = useRef<{ role: string; content: string }[]>([]);
   const flatRef = useRef<FlatList>(null);
+  const autoLoadDone = useRef(false);
+
+  useEffect(() => {
+    if (autoLoadDone.current) return;
+    autoLoadDone.current = true;
+    (async () => {
+      const lastId = await getLastModelId();
+      if (lastId && (await isModelDownloaded(lastId))) {
+        setSelectedModel(lastId);
+        loadModel(lastId);
+      }
+    })();
+  }, []);
 
   const scrollToEnd = () => {
     setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 50);
@@ -34,9 +50,10 @@ const App = () => {
     scrollToEnd();
   }, [messages, searchInd]);
 
-  const handleLoad = () => {
-    loadModel(selectedModel);
-  };
+  const handleLoad = useCallback((modelId: string) => {
+    setSelectedModel(modelId);
+    loadModel(modelId);
+  }, [loadModel]);
 
   const handleSend = async () => {
     const msg = input.trim();

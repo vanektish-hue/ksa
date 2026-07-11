@@ -3,10 +3,26 @@ import { initLlama, type LlamaContext, type TokenData } from '@pocketpalai/llama
 import RNFS from 'react-native-fs';
 import { MODELS, type ModelOption } from '@/lib/models';
 
+const CONFIG_FILE = `${RNFS.DocumentDirectoryPath}/ksa_config.json`;
+
+async function loadConfig(): Promise<{ modelId?: string }> {
+  try {
+    if (await RNFS.exists(CONFIG_FILE)) {
+      const raw = await RNFS.readFile(CONFIG_FILE, 'utf8');
+      return JSON.parse(raw);
+    }
+  } catch {}
+  return {};
+}
+
+async function saveConfig(config: { modelId?: string }) {
+  try {
+    await RNFS.writeFile(CONFIG_FILE, JSON.stringify(config), 'utf8');
+  } catch {}
+}
+
 export function useLlama() {
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(
-    'idle',
-  );
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('выбери модель');
   const ctxRef = useRef<LlamaContext | null>(null);
@@ -14,6 +30,18 @@ export function useLlama() {
   const getModelPath = (model: ModelOption) => {
     const name = model.url.split('/').pop() || `${model.id}.gguf`;
     return `${RNFS.DocumentDirectoryPath}/${name}`;
+  };
+
+  const isModelDownloaded = async (modelId: string): Promise<boolean> => {
+    const model = MODELS.find((m) => m.id === modelId);
+    if (!model) return false;
+    const dest = getModelPath(model);
+    return await RNFS.exists(dest);
+  };
+
+  const getLastModelId = async (): Promise<string | null> => {
+    const config = await loadConfig();
+    return config.modelId ?? null;
   };
 
   const downloadModel = async (model: ModelOption): Promise<string> => {
@@ -55,6 +83,7 @@ export function useLlama() {
         },
       );
       ctxRef.current = ctx;
+      await saveConfig({ modelId });
       setStatus('ready');
       setStatusText(model.label.split(' ')[0]);
       setProgress(1);
@@ -89,11 +118,10 @@ export function useLlama() {
           }
         },
       );
-
       return full || result.text || '';
     },
     [],
   );
 
-  return { status, progress, statusText, loadModel, generate };
+  return { status, progress, statusText, loadModel, generate, isModelDownloaded, getLastModelId };
 }

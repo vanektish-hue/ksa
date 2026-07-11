@@ -10,7 +10,7 @@ export const ModelPicker = ({
 }: {
   selected: string;
   onSelect: (id: string) => void;
-  onLoad: () => void;
+  onLoad: (id: string) => void;
   disabled: boolean;
 }) => {
   const [open, setOpen] = useState(false);
@@ -28,7 +28,7 @@ export const ModelPicker = ({
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.btn, disabled && styles.btnDisabled]}
-        onPress={onLoad}
+        onPress={() => onLoad(selected)}
         disabled={disabled}>
         <Text style={styles.btnText}>Запустить</Text>
       </TouchableOpacity>
