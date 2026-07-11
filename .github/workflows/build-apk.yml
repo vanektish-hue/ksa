@@ -44,30 +44,56 @@ jobs:
 
       - name: Patch Gradle + signing
         run: |
-          sed -i 's|rootProject\.ext\.ndkVersion|"27.1.12297006"|g' android/app/build.gradle
-          sed -i 's|rootProject\.ext\.buildToolsVersion|"36.0.0"|g' android/app/build.gradle
-          sed -i 's|rootProject\.ext\.compileSdkVersion|36|g' android/app/build.gradle
-          sed -i 's|rootProject\.ext\.minSdkVersion|24|g' android/app/build.gradle
-          sed -i 's|rootProject\.ext\.targetSdkVersion|36|g' android/app/build.gradle
+          python3 << 'PATCH'
+          import re
 
-          # Add release signing config to android/app/build.gradle
-          cat >> android/app/build.gradle << 'SIGNING'
+          path = 'android/app/build.gradle'
+          with open(path, 'r') as f:
+              content = f.read()
 
-          signingConfigs {
-            release {
-              storeFile file('/tmp/release.keystore')
-              storePassword 'ksa1234'
-              keyAlias 'ksa'
-              keyPassword 'ksa1234'
-            }
+          # Replace rootProject.ext references
+          replacements = {
+              'rootProject.ext.ndkVersion': '"27.1.12297006"',
+              'rootProject.ext.buildToolsVersion': '"36.0.0"',
+              'rootProject.ext.compileSdkVersion': '36',
+              'rootProject.ext.minSdkVersion': '24',
+              'rootProject.ext.targetSdkVersion': '36',
           }
-          SIGNING
+          for old, new in replacements.items():
+              content = content.replace(old, new)
 
-          # Replace debug signing with release signing in buildTypes
-          sed -i 's|signingConfig signingConfigs.debug|signingConfig signingConfigs.release|g' android/app/build.gradle
+          # Add release signing config inside existing signingConfigs block
+          release_signing = """        release {
+            storeFile file('/tmp/release.keystore')
+            storePassword 'ksa1234'
+            keyAlias 'ksa'
+            keyPassword 'ksa1234'
+        }"""
 
-          echo "--- patched build.gradle ---"
-          grep -n "signingConfig\|ndkVersion\|buildTools\|compileSdk\|minSdk\|targetSdk" android/app/build.gradle
+          # Insert after the debug signing config closing brace
+          content = content.replace(
+              "            keyPassword 'android'\n        }\n    }",
+              "            keyPassword 'android'\n        }\n" + release_signing + "\n    }",
+              1
+          )
+
+          # Change release buildType to use release signing
+          # Only in the release block, not debug
+          content = content.replace(
+              "signingConfig signingConfigs.debug\n            def enableShrinkResources",
+              "signingConfig signingConfigs.release\n            def enableShrinkResources",
+              1
+          )
+
+          with open(path, 'w') as f:
+              f.write(content)
+
+          # Verify
+          with open(path, 'r') as f:
+              for i, line in enumerate(f, 1):
+                  if 'signingConfig' in line or 'storeFile' in line or 'keyAlias' in line:
+                      print(f'{i}: {line.rstrip()}')
+          PATCH
 
       - name: Build release APK
         run: |
