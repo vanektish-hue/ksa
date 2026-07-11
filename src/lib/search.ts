@@ -102,10 +102,10 @@ export function formatSearchContext(
 }
 
 export function extractSearchQuery(text: string): string | null {
-  const match = text.match(/%%%(.*?)%%%/);
+  const match = text.match(/<search>\((.*?)\)<\/search>/);
   return match ? match[1].trim() : null;
 }
 
 export function stripSearchTags(text: string): string {
-  return text.replace(/%%%.*?%%%/g, '').trim();
+  return text.replace(/<search>\(.*?\)<\/search>/g, '').trim();
 }
