@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { initLlama, type LlamaContext, type TokenData } from '@pocketpalai/llama.rn';
 import RNFS from 'react-native-fs';
+import { Platform } from 'react-native';
 import { MODELS, type ModelOption } from '@/lib/models';
 
 const CONFIG_FILE = `${RNFS.DocumentDirectoryPath}/ksa_config.json`;
@@ -35,8 +36,7 @@ export function useLlama() {
   const isModelDownloaded = async (modelId: string): Promise<boolean> => {
     const model = MODELS.find((m) => m.id === modelId);
     if (!model) return false;
-    const dest = getModelPath(model);
-    return await RNFS.exists(dest);
+    return await RNFS.exists(getModelPath(model));
   };
 
   const getLastModelId = async (): Promise<string | null> => {
@@ -46,7 +46,13 @@ export function useLlama() {
 
   const downloadModel = async (model: ModelOption): Promise<string> => {
     const dest = getModelPath(model);
-    if (await RNFS.exists(dest)) return dest;
+    if (await RNFS.exists(dest)) {
+      // Check file is not empty
+      const stat = await RNFS.stat(dest);
+      if (stat.size > 1000000) return dest; // > 1 MB = valid
+      // Corrupted, delete and re-download
+      await RNFS.unlink(dest);
+    }
 
     setStatusText(`скачиваю ${model.size}...`);
     const job = RNFS.downloadFile({
@@ -57,7 +63,10 @@ export function useLlama() {
         if (res.contentLength > 0) setProgress(res.bytesWritten / res.contentLength);
       },
     });
-    await job.promise;
+    const result = await job.promise;
+    if (result.statusCode !== 200) {
+      throw new Error(`Ошибка скачивания: код ${result.statusCode}`);
+    }
     return dest;
   };
 
@@ -72,11 +81,11 @@ export function useLlama() {
       const ctx = await initLlama(
         {
           model: path,
-          n_ctx: 1024,
+          n_ctx: 512,
           n_gpu_layers: 0,
           use_mlock: false,
-          use_mmap: true,
-          n_threads: 4,
+          use_mmap: false,
+          n_threads: 2,
         },
         (p: number) => {
           if (p > 0 && p < 1) setProgress(p);
@@ -87,10 +96,11 @@ export function useLlama() {
       setStatus('ready');
       setStatusText(model.label.split(' ')[0]);
       setProgress(1);
-    } catch (e) {
+    } catch (e: any) {
       console.log('[KSA] Load error:', e);
       setStatus('error');
-      setStatusText('ошибка: ' + String(e).substring(0, 50));
+      const msg = String(e?.message || e || 'неизвестная ошибка').substring(0, 60);
+      setStatusText('ошибка: ' + msg);
     }
   }, []);
 
@@ -99,7 +109,7 @@ export function useLlama() {
       messages: { role: string; content: string }[],
       onToken: (token: string) => void,
     ): Promise<string> => {
-      if (!ctxRef.current) throw new Error('Model not loaded');
+      if (!ctxRef.current) throw new Error('Модель не загружена');
 
       let full = '';
       const result = await ctxRef.current.completion(
