@@ -43,10 +43,50 @@ jobs:
           sed -i 's|rootProject\.ext\.minSdkVersion|24|g' android/app/build.gradle
           sed -i 's|rootProject\.ext\.targetSdkVersion|36|g' android/app/build.gradle
 
-      - name: Verify AndroidManifest
+      - name: Download base model (Qwen 0.5B GGUF)
         run: |
-          grep -o "SoftInputMode" android/app/src/main/AndroidManifest.xml || echo "Not found (Expo may not add it)"
-          xmllint --noout android/app/src/main/AndroidManifest.xml 2>&1 || echo "xmllint not available, skipping"
+          mkdir -p android/app/src/main/assets/models
+          echo "📥 Скачиваю базовую модель Qwen 0.5B..."
+          curl -sL --connect-timeout 30 --max-time 600 \
+            -o android/app/src/main/assets/models/qwen2.5-0.5b-instruct-q4_k_m.gguf \
+            "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+          ls -lh android/app/src/main/assets/models/
+
+      - name: Download and extract LoRA adapter
+        run: |
+          echo "📥 Скачиваю LoRA адаптер..."
+          # Get download URL from Yandex Disk API
+          LORA_URL=$(curl -sL --connect-timeout 15 --max-time 30 \
+            "https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key=https://disk.yandex.ru/d/gimzGGKEZVM8Ow" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('href',''))")
+          
+          if [ -z "$LORA_URL" ]; then
+            echo "❌ Не удалось получить URL для скачивания LoRA"
+            exit 1
+          fi
+          
+          curl -sL --connect-timeout 30 --max-time 120 \
+            -o /tmp/folk_qwen_lora.zip \
+            "$LORA_URL"
+          
+          echo "📦 Распаковываю LoRA..."
+          cd /tmp
+          unzip -o folk_qwen_lora.zip -d folk_qwen_lora_extracted
+          
+          # Copy LoRA files to Android assets
+          find folk_qwen_lora_extracted -name "adapter_model.safetensors" -exec cp {} /home/runner/work/ksa/ksa/android/app/src/main/assets/models/ \;
+          find folk_qwen_lora_extracted -name "adapter_config.json" -exec cp {} /home/runner/work/ksa/ksa/android/app/src/main/assets/models/ \;
+          
+          echo "✅ LoRA готов:"
+          ls -lh /home/runner/work/ksa/ksa/android/app/src/main/assets/models/
+
+      - name: Verify embedded models
+        run: |
+          echo "📦 Содержимое assets/models:"
+          ls -lh android/app/src/main/assets/models/
+          echo "Размер APK будет примерно:"
+          du -sh android/app/src/main/assets/models/
+          echo "МБ в assets"
 
       - name: Create keystore
         run: keytool -genkeypair -v -keystore /tmp/release.keystore -alias ksa -keyalg RSA -keysize 2048 -validity 10000 -storepass ksa1234 -keypass ksa1234 -dname "CN=KSA, OU=KSA, O=KSA, L=Moscow, ST=Moscow, C=RU"

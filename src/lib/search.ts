@@ -101,11 +101,20 @@ export function formatSearchContext(
   return ctx;
 }
 
+// Extract search query from model output
+// Supports: <search>(query)</search> and <search>query</search>
 export function extractSearchQuery(text: string): string | null {
-  const match = text.match(/<search>\((.*?)\)<\/search>/);
-  return match ? match[1].trim() : null;
+  // Try with parentheses first: <search>(query)</search>
+  const withParens = text.match(/<search>\(([^)]*)\)<\/search>/);
+  if (withParens && withParens[1].trim()) return withParens[1].trim();
+
+  // Fallback: <search>query</search> (without parentheses)
+  const withoutParens = text.match(/<search>([^<]+)<\/search>/);
+  if (withoutParens && withoutParens[1].trim()) return withoutParens[1].trim();
+
+  return null;
 }
 
 export function stripSearchTags(text: string): string {
-  return text.replace(/<search>\(.*?\)<\/search>/g, '').trim();
+  return text.replace(/<search>\(?([^)]*)\)?<\/search>/g, '').trim();
 }

@@ -1,10 +1,20 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, Platform } from 'react';
 import { initLlama, type LlamaContext, type TokenData } from '@pocketpalai/llama.rn';
 import RNFS from 'react-native-fs';
-import { Platform } from 'react-native';
 import { MODELS, type ModelOption } from '@/lib/models';
 
 const CONFIG_FILE = `${RNFS.DocumentDirectoryPath}/ksa_config.json`;
+const MODELS_DIR = `${RNFS.DocumentDirectoryPath}/models`;
+
+// Embedded model files (shipped inside APK assets)
+const EMBEDDED_BASE = 'models/qwen2.5-0.5b-instruct-q4_k_m.gguf';
+const EMBEDDED_LORA = 'models/adapter_model.safetensors';
+
+async function ensureModelsDir() {
+  if (!(await RNFS.exists(MODELS_DIR))) {
+    await RNFS.mkdir(MODELS_DIR);
+  }
+}
 
 async function loadConfig(): Promise<{ modelId?: string }> {
   try {
@@ -29,6 +39,9 @@ export function useLlama() {
   const ctxRef = useRef<LlamaContext | null>(null);
 
   const getModelPath = (model: ModelOption) => {
+    if (model.embedded) {
+      return `${MODELS_DIR}/qwen2.5-0.5b-instruct-q4_k_m.gguf`;
+    }
     const name = model.url.split('/').pop() || `${model.id}.gguf`;
     return `${RNFS.DocumentDirectoryPath}/${name}`;
   };
@@ -36,6 +49,7 @@ export function useLlama() {
   const isModelDownloaded = async (modelId: string): Promise<boolean> => {
     const model = MODELS.find((m) => m.id === modelId);
     if (!model) return false;
+    if (model.embedded) return true;
     return await RNFS.exists(getModelPath(model));
   };
 
@@ -44,15 +58,47 @@ export function useLlama() {
     return config.modelId ?? null;
   };
 
-  const downloadModel = async (model: ModelOption): Promise<string> => {
-    const dest = getModelPath(model);
-    if (await RNFS.exists(dest)) {
-      // Check file is not empty
-      const stat = await RNFS.stat(dest);
-      if (stat.size > 1000000) return dest; // > 1 MB = valid
-      // Corrupted, delete and re-download
-      await RNFS.unlink(dest);
+  // Copy embedded model files from APK assets → documents
+  const copyEmbeddedAssets = async (): Promise<{ modelPath: string; loraPath?: string }> => {
+    await ensureModelsDir();
+
+    const modelPath = `${MODELS_DIR}/qwen2.5-0.5b-instruct-q4_k_m.gguf`;
+    const loraPath = `${MODELS_DIR}/adapter_model.safetensors`;
+
+    if (!(await RNFS.exists(modelPath))) {
+      if (Platform.OS === 'android') {
+        await RNFS.copyFileAssets(EMBEDDED_BASE, modelPath);
+      }
     }
+
+    // LoRA is optional — check if it exists in assets
+    let hasLora = false;
+    if (Platform.OS === 'android') {
+      // Check by trying to copy (if missing, will throw)
+      if (!(await RNFS.exists(loraPath))) {
+        try {
+          await RNFS.copyFileAssets(EMBEDDED_LORA, loraPath);
+          hasLora = true;
+        } catch {
+          hasLora = false;
+        }
+      } else {
+        hasLora = true;
+      }
+    }
+
+    return { modelPath, loraPath: hasLora ? loraPath : undefined };
+  };
+
+  const downloadModel = async (model: ModelOption): Promise<{ path: string; loraPath?: string }> => {
+    // Embedded model: extract from APK assets
+    if (model.embedded) {
+      return await copyEmbeddedAssets();
+    }
+
+    // Regular model: download from URL
+    const dest = getModelPath(model);
+    if (await RNFS.exists(dest)) return { path: dest };
 
     setStatusText(`скачиваю ${model.size}...`);
     const job = RNFS.downloadFile({
@@ -67,7 +113,7 @@ export function useLlama() {
     if (result.statusCode !== 200) {
       throw new Error(`Ошибка скачивания: код ${result.statusCode}`);
     }
-    return dest;
+    return { path: dest };
   };
 
   const loadModel = useCallback(async (modelId: string) => {
@@ -75,18 +121,25 @@ export function useLlama() {
     setStatus('loading');
     setProgress(0);
     try {
-      const path = await downloadModel(model);
+      const { path, loraPath } = await downloadModel(model);
       setStatusText('инициализация модели...');
 
+      const params: Record<string, any> = {
+        model: path,
+        n_ctx: 512,
+        n_gpu_layers: 0,
+        use_mlock: false,
+        use_mmap: false,
+        n_threads: 2,
+      };
+
+      // Try to apply LoRA if available
+      if (loraPath) {
+        params.lora = loraPath;
+      }
+
       const ctx = await initLlama(
-        {
-          model: path,
-          n_ctx: 512,
-          n_gpu_layers: 0,
-          use_mlock: false,
-          use_mmap: false,
-          n_threads: 2,
-        },
+        params as any,
         (p: number) => {
           if (p > 0 && p < 1) setProgress(p);
         },
