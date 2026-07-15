@@ -4,8 +4,7 @@ export interface ModelOption {
   url: string;
   size: string;
   recommended?: boolean;
-  embedded?: boolean;  // true = model is inside APK
-  loraUrl?: string;    // LoRA adapter URL (downloaded during CI)
+  embedded?: boolean;
 }
 
 export const MODELS: ModelOption[] = [
@@ -16,7 +15,6 @@ export const MODELS: ModelOption[] = [
     size: 'в APK',
     recommended: true,
     embedded: true,
-    loraUrl: 'https://disk.yandex.ru/d/gimzGGKEZVM8Ow',
   },
   {
     id: 'qwen2.5-0.5b',

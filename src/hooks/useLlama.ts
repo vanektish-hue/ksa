@@ -6,9 +6,8 @@ import { MODELS, type ModelOption } from '@/lib/models';
 const CONFIG_FILE = `${RNFS.DocumentDirectoryPath}/ksa_config.json`;
 const MODELS_DIR = `${RNFS.DocumentDirectoryPath}/models`;
 
-// Embedded model files (shipped inside APK assets)
+// Embedded model file (shipped inside APK assets)
 const EMBEDDED_BASE = 'models/qwen2.5-0.5b-instruct-q4_k_m.gguf';
-const EMBEDDED_LORA = 'models/adapter_model.safetensors';
 
 async function ensureModelsDir() {
   if (!(await RNFS.exists(MODELS_DIR))) {
@@ -58,47 +57,29 @@ export function useLlama() {
     return config.modelId ?? null;
   };
 
-  // Copy embedded model files from APK assets → documents
-  const copyEmbeddedAssets = async (): Promise<{ path: string; loraPath?: string }> => {
+  // Copy embedded model from APK assets → documents
+  const extractEmbeddedModel = async (): Promise<string> => {
     await ensureModelsDir();
-
     const modelPath = `${MODELS_DIR}/qwen2.5-0.5b-instruct-q4_k_m.gguf`;
-    const loraPath = `${MODELS_DIR}/adapter_model.safetensors`;
 
-    if (!(await RNFS.exists(modelPath))) {
-      if (Platform.OS === 'android') {
-        await RNFS.copyFileAssets(EMBEDDED_BASE, modelPath);
-      }
-    }
+    if (await RNFS.exists(modelPath)) return modelPath;
 
-    // LoRA is optional — check if it exists in assets
-    let hasLora = false;
     if (Platform.OS === 'android') {
-      // Check by trying to copy (if missing, will throw)
-      if (!(await RNFS.exists(loraPath))) {
-        try {
-          await RNFS.copyFileAssets(EMBEDDED_LORA, loraPath);
-          hasLora = true;
-        } catch {
-          hasLora = false;
-        }
-      } else {
-        hasLora = true;
-      }
+      await RNFS.copyFileAssets(EMBEDDED_BASE, modelPath);
     }
 
-    return { path: modelPath, loraPath: hasLora ? loraPath : undefined };
+    return modelPath;
   };
 
-  const downloadModel = async (model: ModelOption): Promise<{ path: string; loraPath?: string }> => {
+  const downloadModel = async (model: ModelOption): Promise<string> => {
     // Embedded model: extract from APK assets
     if (model.embedded) {
-      return await copyEmbeddedAssets();
+      return await extractEmbeddedModel();
     }
 
     // Regular model: download from URL
     const dest = getModelPath(model);
-    if (await RNFS.exists(dest)) return { path: dest };
+    if (await RNFS.exists(dest)) return dest;
 
     setStatusText(`скачиваю ${model.size}...`);
     const job = RNFS.downloadFile({
@@ -113,7 +94,7 @@ export function useLlama() {
     if (result.statusCode !== 200) {
       throw new Error(`Ошибка скачивания: код ${result.statusCode}`);
     }
-    return { path: dest };
+    return dest;
   };
 
   const loadModel = useCallback(async (modelId: string) => {
@@ -121,25 +102,18 @@ export function useLlama() {
     setStatus('loading');
     setProgress(0);
     try {
-      const { path, loraPath } = await downloadModel(model);
+      const path = await downloadModel(model);
       setStatusText('инициализация модели...');
 
-      const params: Record<string, any> = {
-        model: path,
-        n_ctx: 512,
-        n_gpu_layers: 0,
-        use_mlock: false,
-        use_mmap: false,
-        n_threads: 2,
-      };
-
-      // Try to apply LoRA if available
-      if (loraPath) {
-        params.lora = loraPath;
-      }
-
       const ctx = await initLlama(
-        params as any,
+        {
+          model: path,
+          n_ctx: 512,
+          n_gpu_layers: 0,
+          use_mlock: false,
+          use_mmap: false,
+          n_threads: 2,
+        },
         (p: number) => {
           if (p > 0 && p < 1) setProgress(p);
         },
