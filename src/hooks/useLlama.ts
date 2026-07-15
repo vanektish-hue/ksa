@@ -59,7 +59,7 @@ export function useLlama() {
   };
 
   // Copy embedded model files from APK assets → documents
-  const copyEmbeddedAssets = async (): Promise<{ modelPath: string; loraPath?: string }> => {
+  const copyEmbeddedAssets = async (): Promise<{ path: string; loraPath?: string }> => {
     await ensureModelsDir();
 
     const modelPath = `${MODELS_DIR}/qwen2.5-0.5b-instruct-q4_k_m.gguf`;
@@ -87,7 +87,7 @@ export function useLlama() {
       }
     }
 
-    return { modelPath, loraPath: hasLora ? loraPath : undefined };
+    return { path: modelPath, loraPath: hasLora ? loraPath : undefined };
   };
 
   const downloadModel = async (model: ModelOption): Promise<{ path: string; loraPath?: string }> => {
